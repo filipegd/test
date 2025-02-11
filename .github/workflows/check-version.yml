@@ -1,0 +1,45 @@
+name: Check Version File in PR
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-version-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Ensures we have recent history
+
+      - name: Check if version.txt file was modified
+        id: check-file
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q "version.txt"; then
+            echo "The version.txt file was modified."
+            echo "changed=true" >> $GITHUB_ENV
+          else
+            echo "The version.txt file was NOT modified!"
+            echo "changed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Comment on PR if the file was not modified
+        if: env.changed == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "⚠️ The `version.txt` file **was not modified**. Please make sure to update the application version before merging!"
+            });
+
+      - name: Fail workflow if the file was not modified
+        if: env.changed == 'false'
+        run: |
+          echo "Error: The version.txt file needs to be updated."
+          exit 1
